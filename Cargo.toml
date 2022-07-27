@@ -1,0 +1,53 @@
+[package]
+name = "rust-service-sdk"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+path = "src/lib.rs"
+
+[[test]]
+path = "tests/main.rs"
+name = "rust-service-sdk-test"
+
+[dependencies]
+
+#Runtime
+tokio = { version = "*", features = ["full"] }
+tokio-util = "0.7.3"
+hyper = {version="*"}
+rand = "*"
+anyhow = "*"
+lazy_static = "1.4.0"
+time = { version = "0.3", default-features = false, features = ["formatting"] }
+gethostname = "0.2.1"
+tonic = "0.7.1"
+prost = "0.10.1"
+uuid = {version = "*", features = [
+    "v4",                # Lets you generate random UUIDs
+    "fast-rng",          # Use a faster (but still sufficiently random) RNG
+    "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
+]}
+async-trait = "0.1.56"
+
+#HTTP
+reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls", "cookies"] }
+
+# Serialization
+serde = { version = "*", features = ["derive"] }
+serde_json = "*"
+serde_derive = "*"
+serde_yaml = "*"
+
+#Logging and tracing
+log = "0.4"
+tracing = "0.1.19"
+tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
+tracing-bunyan-formatter = "0.3"
+tracing-log = "0.1.1"
+tracing-appender = "0.2.2"
+tracing-core = "0.1.10"
+
+[build-dependencies]
+tonic-build = { version = "*", features = ["prost"] }
