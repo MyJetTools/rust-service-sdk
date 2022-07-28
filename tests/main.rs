@@ -15,6 +15,7 @@ pub mod test {
     };
     use serde::{Deserialize, Serialize};
     use std::sync::Arc;
+    use tokio::sync::Mutex;
     use tokio_util::sync::CancellationToken;
 
     use crate::{
@@ -49,6 +50,7 @@ pub mod test {
     pub struct AppContext {
         pub states: GlobalStates,
         pub database: Arc<dyn Database<RequestCounter> + Sync + Send>,
+        pub some_counter: Arc<Mutex<u64>>,
     }
 
     impl AppContext {
@@ -56,6 +58,7 @@ pub mod test {
             Self {
                 states: GlobalStates::new(),
                 database: Arc::new(DatabaseImpl::new()),
+                some_counter: Arc::new(Mutex::new(0)),
             }
         }
     }
@@ -96,11 +99,10 @@ pub mod test {
 
         //JUST A GRPC EXAMPLE
         let token = Arc::new(CancellationToken::new());
-        let client_pereodic_task = tokio::spawn(start_test(
-            application.env_config.clone(),
-            token.clone(),
-        ));
+        let client_pereodic_task =
+            tokio::spawn(start_test(application.env_config.clone(), token.clone()));
         let mut running_tasks = vec![client_pereodic_task];
+
         application
             .wait_for_termination(
                 sink,
@@ -108,14 +110,27 @@ pub mod test {
                 http_server,
                 &mut running_tasks,
                 Some(token.clone()),
+                graceful_shutdown_func,
+                555,
             )
             .await;
 
+        //Check grpc
         println!("Assert");
         let counter = application.context.database.read().await;
         assert!(counter.counter == 1);
 
+        //check shutdown
+        let counter = application.context.some_counter.lock().await;
+        assert!(*counter == 1);
+
         println!("Assert Finished");
+    }
+
+    async fn graceful_shutdown_func(context: Arc<AppContext>) -> bool {
+        let mut guard = context.some_counter.lock().await;
+        *guard += 1;
+        true
     }
 
     async fn start_test(

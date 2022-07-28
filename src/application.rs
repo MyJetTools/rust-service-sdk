@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, future::Future};
 
 use serde::de::DeserializeOwned;
 use tokio_util::sync::CancellationToken;
@@ -79,14 +79,18 @@ where
         (grpc_server, http_server)
     }
 
-    pub async fn wait_for_termination(
+    pub async fn wait_for_termination<Func, Fut>(
         &self,
         sink: Arc<ElasticSink>,
         grpc_server: tokio::task::JoinHandle<Result<(), anyhow::Error>>,
         http_server: tokio::task::JoinHandle<Result<(), anyhow::Error>>,
-        tasks: &mut Vec<tokio::task::JoinHandle<Result<(), anyhow::Error>>>,
+        tasks_to_abort: &mut Vec<tokio::task::JoinHandle<Result<(), anyhow::Error>>>,
         cancellation: Option<Arc<CancellationToken>>,
-    ) {
+        graceful_shutdown_task: Func,
+        shutdown_time_ms: u64,
+    ) where
+            Func: FnOnce(Arc<TAppContext>) -> Fut,
+            Fut: Future<Output = bool>, {
         let cancellation_token: CancellationToken;
         if let Some(parent_token) = cancellation {
             cancellation_token = parent_token.child_token();
@@ -101,11 +105,11 @@ where
 
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {
-                println!("Stop signal received!");
+                tracing::info!("Stop signal received!");
                 shut_func();
             },
             _ = cancellation_token.cancelled() => {
-                println!("Stop signal received via cancellation token!");
+                tracing::info!("Stop signal received via cancellation token!");
                 shut_func();
             },
             o = grpc_server => {
@@ -119,12 +123,21 @@ where
         };
         
         // This is how shut down tasks
-        while let Some(task) = tasks.pop(){
+        while let Some(task) = tasks_to_abort.pop(){
             tokio::select! {
                 _ = task => {},
                 _ = cancellation_token.cancelled() => {},
             };
         }
+
+        tokio::select! {
+            _ = graceful_shutdown_task(self.context.clone()) => {
+                tracing::info!("Graceful shutdown has finished!");
+            },
+            _ = tokio::time::sleep(std::time::Duration::from_millis(shutdown_time_ms)) => {
+                tracing::info!("Graceful shutdown cancelled after waiting {} ms!", shutdown_time_ms);
+            },
+        };
 
         sink.finalize_logs().await;
     }

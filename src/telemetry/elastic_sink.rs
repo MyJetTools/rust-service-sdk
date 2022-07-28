@@ -52,10 +52,13 @@ impl ElasticSink {
     }
 
     pub async fn finalize_logs(&self) {
+        println!("Finalizing logs.");
         self.log_flusher.abort();
         let mut write_access = self.buffer.as_ref().write().await;
 
         if write_access.len() == 0 {
+            self.log_writer.abort();
+            println!("Finalized logs.");
             return;
         }
 
@@ -86,6 +89,7 @@ impl ElasticSink {
         }
 
         self.log_writer.abort();
+        println!("Finalized logs.");
     }
 }
 
