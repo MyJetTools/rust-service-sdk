@@ -1,10 +1,10 @@
-use std::{sync::Arc, future::Future};
+use std::{future::Future, sync::Arc};
 
 use serde::de::DeserializeOwned;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    app::app_ctx::{GetGlobalState, GetLogStashUrl},
+    app::app_ctx::{GetGlobalState, GetLogStashUrl, InitGrpc},
     configuration::{EnvConfig, SettingsReader},
     server,
     telemetry::{get_subscriber, init_subscriber, ElasticSink},
@@ -14,11 +14,13 @@ pub struct Application<TAppContext, TSettingsModel> {
     pub settings: Arc<TSettingsModel>,
     pub context: Arc<TAppContext>,
     pub env_config: Arc<EnvConfig>,
+    pub grpc_server: Box<tokio::task::JoinHandle<Result<(), anyhow::Error>>>,
+    pub http_server: Box<tokio::task::JoinHandle<Result<(), anyhow::Error>>>,
 }
 
 impl<TAppContext, TSettingsModel> Application<TAppContext, TSettingsModel>
 where
-    TAppContext: GetGlobalState + Send + Sync,
+    TAppContext: GetGlobalState + InitGrpc + Send + Sync,
     TSettingsModel: DeserializeOwned + GetLogStashUrl,
 {
     pub async fn init<TGetConext>(create_context: TGetConext) -> Self
@@ -36,10 +38,12 @@ where
             context,
             env_config,
             settings: Arc::new(settings),
+            grpc_server: Box::new(tokio::spawn(server::get_stab())),
+            http_server: Box::new(tokio::spawn(server::get_stab())),
         }
     }
 
-    pub fn start_logger(&self) -> Arc<ElasticSink> {
+    fn start_logger(&self) -> Arc<ElasticSink> {
         let sink = Arc::new(ElasticSink::new(
             self.settings.get_logstash_url().parse().unwrap(),
         ));
@@ -55,49 +59,45 @@ where
         sink
     }
 
-    pub async fn start_hosting<Func>(
-        &self,
-        register_services: Func,
-    ) -> (
-        tokio::task::JoinHandle<Result<(), anyhow::Error>>,
-        tokio::task::JoinHandle<Result<(), anyhow::Error>>,
-    )
-    where
-        Func: Fn(
-                Box<std::cell::RefCell<tonic::transport::Server>>,
-            ) -> tonic::transport::server::Router
-            + Send
-            + Sync
-            + 'static,
+    pub async fn start_hosting<Func>(&mut self, func:Func) -> Arc<ElasticSink>
+    where Func: Fn(
+        Box<std::cell::RefCell<tonic::transport::Server>>,
+    ) -> tonic::transport::server::Router
+    + Send
+    + Sync
+    + 'static,
     {
+        let sink = self.start_logger();
+        
         let grpc_server = tokio::spawn(server::run_grpc_server(
             self.env_config.clone(),
-            register_services,
+            func,
         ));
         let http_server = tokio::spawn(server::run_http_server(self.env_config.clone()));
 
-        (grpc_server, http_server)
+        self.grpc_server = Box::new(grpc_server);
+        self.http_server = Box::new(http_server);
+        sink
     }
 
     pub async fn wait_for_termination<Func, Fut>(
-        &self,
+        &mut self,
         sink: Arc<ElasticSink>,
-        grpc_server: tokio::task::JoinHandle<Result<(), anyhow::Error>>,
-        http_server: tokio::task::JoinHandle<Result<(), anyhow::Error>>,
         tasks_to_abort: &mut Vec<tokio::task::JoinHandle<Result<(), anyhow::Error>>>,
         cancellation: Option<Arc<CancellationToken>>,
         graceful_shutdown_task: Func,
         shutdown_time_ms: u64,
     ) where
-            Func: FnOnce(Arc<TAppContext>) -> Fut,
-            Fut: Future<Output = bool>, {
+        Func: FnOnce(Arc<TAppContext>) -> Fut,
+        Fut: Future<Output = bool>,
+    {
         let cancellation_token: CancellationToken;
         if let Some(parent_token) = cancellation {
             cancellation_token = parent_token.child_token();
         } else {
             cancellation_token = tokio_util::sync::CancellationToken::new();
         }
-        
+
         let shut_func = || {
             self.context.shutting_down();
             cancellation_token.cancel();
@@ -112,18 +112,18 @@ where
                 tracing::info!("Stop signal received via cancellation token!");
                 shut_func();
             },
-            o = grpc_server => {
+            o = &mut self.grpc_server => {
                 report_exit("GRPC_SERVER", o);
                 shut_func();
             }
-            o = http_server => {
+            o = &mut self.http_server => {
                 report_exit("HTTP_SERVER", o);
                 shut_func();
             }
         };
-        
+
         // This is how shut down tasks
-        while let Some(task) = tasks_to_abort.pop(){
+        while let Some(task) = tasks_to_abort.pop() {
             tokio::select! {
                 _ = task => {},
                 _ = cancellation_token.cancelled() => {},
@@ -141,6 +141,7 @@ where
 
         sink.finalize_logs().await;
     }
+
 }
 
 fn report_exit(

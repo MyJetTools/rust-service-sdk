@@ -14,6 +14,9 @@ name = "rust-service-sdk-test"
 [dependencies]
 
 #Runtime
+my-no-sql-data-writer = { branch = "0.1.2", git = "https://github.com/MyJetTools/my-no-sql-data-writer.git" }
+#my-no-sql-tcp-reader = { branch = "0.1.3", git = "https://github.com/MyJetTools/my-no-sql-tcp-reader.git" }
+my-no-sql-server-abstractions = { branch = "main", git = "https://github.com/MyJetTools/my-no-sql-server-abstractions.git" }
 tokio = { version = "*", features = ["full"] }
 tokio-util = "0.7.3"
 hyper = {version="*"}
@@ -22,8 +25,8 @@ anyhow = "*"
 lazy_static = "1.4.0"
 time = { version = "0.3", default-features = false, features = ["formatting"] }
 gethostname = "0.2.1"
-tonic = "0.7.1"
-prost = "0.10.1"
+tonic = "0.8.0"
+prost = "0.11.0"
 uuid = {version = "*", features = [
     "v4",                # Lets you generate random UUIDs
     "fast-rng",          # Use a faster (but still sufficiently random) RNG

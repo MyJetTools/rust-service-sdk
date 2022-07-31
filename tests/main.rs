@@ -7,7 +7,7 @@ pub mod test {
 
     use rust_service_sdk::{
         app::{
-            app_ctx::{GetGlobalState, GetLogStashUrl},
+            app_ctx::{GetGlobalState, GetLogStashUrl, InitGrpc},
             global_states::GlobalStates,
         },
         application::Application,
@@ -39,6 +39,12 @@ pub mod test {
 
         #[serde(rename = "LogStashUrl")]
         pub log_stash_url: String,
+
+        #[serde(rename = "MyNoSqlWriterUrl")]
+        pub my_no_sql_writer_url: String,
+
+        #[serde(rename = "MyNoSqlReaderHostPort")]
+        pub my_mo_sql_reader_host_port: String,
     }
 
     impl GetLogStashUrl for SettingsModel {
@@ -63,6 +69,19 @@ pub mod test {
         }
     }
 
+    impl InitGrpc for AppContext {
+        fn init_grpc(
+            &self,
+            server: Box<std::cell::RefCell<tonic::transport::Server>>,
+        ) -> tonic::transport::server::Router {
+            let bookstore = BookStoreImpl::new(self.database.clone());
+
+            server.borrow_mut().add_service(
+                crate::generated_proto::bookstore_server::BookstoreServer::new(bookstore),
+            )
+        }
+    }
+
     impl GetGlobalState for AppContext {
         fn is_initialized(&self) -> bool {
             self.states.is_initialized()
@@ -79,23 +98,66 @@ pub mod test {
         }
     }
 
+    #[derive(Serialize, Deserialize, Debug)]
+    struct TestEntity {
+        #[serde(rename = "PartitionKey")]
+        pub partition_key: String,
+        #[serde(rename = "RowKey")]
+        pub row_key: String,
+        #[serde(rename = "TimeStamp")]
+        pub time_stamp: String,
+        #[serde(rename = "data")]
+        pub data: i64,
+    }
+
+    impl my_no_sql_server_abstractions::MyNoSqlEntity for TestEntity {
+        fn get_partition_key(&self) -> &str {
+            &self.partition_key[..]
+        }
+        fn get_row_key(&self) -> &str {
+            &self.row_key[..]
+        }
+        fn get_time_stamp(&self) -> i64 {
+            0
+        }
+    }
+
     //Uses env settings
     //Integration test
     #[tokio::test]
     async fn check_that_sdk_works() {
-        let application = Application::<AppContext, SettingsModel>::init(AppContext::new).await;
+        let mut application = Application::<AppContext, SettingsModel>::init(AppContext::new).await;
 
-        let context = application.context.clone();
-        let sink = application.start_logger();
-        let (grpc_server, http_server) = application
-            .start_hosting(move |server| {
-                let bookstore = BookStoreImpl::new(context.database.clone());
+        let clone = application.context.clone();
+        let func = move |server| clone.init_grpc(server);
 
-                server.borrow_mut().add_service(
-                    crate::generated_proto::bookstore_server::BookstoreServer::new(bookstore),
-                )
-            })
-            .await;
+        let data_writer = my_no_sql_data_writer::MyNoSqlDataWriter::<TestEntity>::new(
+            application
+                .settings
+                .inner
+                .my_no_sql_writer_url
+                .clone(),
+            "rust-test-entity".to_string(),
+            true,
+            true,
+            my_no_sql_server_abstractions::DataSyncronizationPeriod::Sec15,
+        );
+
+        let x = data_writer.create_table_if_not_exists().await.unwrap();
+        let entity = TestEntity {
+            data: 1,
+            partition_key: "Test".into(),
+            row_key: "Row".into(),
+            time_stamp: "2022-30-08T14:26:04.8276".into(),
+        };
+        data_writer.insert_or_replace_entity(&entity).await.unwrap();
+        let res = data_writer
+            .get_entity(&entity.partition_key, &entity.row_key)
+            .await
+            .unwrap();
+        println!("{:?}", res.unwrap());
+
+        let sink = application.start_hosting(func).await;
 
         //JUST A GRPC EXAMPLE
         let token = Arc::new(CancellationToken::new());
@@ -106,8 +168,6 @@ pub mod test {
         application
             .wait_for_termination(
                 sink,
-                grpc_server,
-                http_server,
                 &mut running_tasks,
                 Some(token.clone()),
                 graceful_shutdown_func,
@@ -117,7 +177,7 @@ pub mod test {
 
         //Check grpc
         println!("Assert");
-        let counter = application.context.database.read().await;
+        let counter = application.context.clone().database.read().await;
         assert!(counter.counter == 1);
 
         //check shutdown

@@ -67,3 +67,7 @@ pub async fn run_http_server(env_config: Arc<EnvConfig>) -> Result<(), anyhow::E
 
     Ok(())
 }
+
+pub async fn get_stab() -> Result<(), anyhow::Error> {
+    Ok(())
+}

@@ -62,7 +62,7 @@ pub async fn read_from_url<T>() -> Result<T, ()> where T: DeserializeOwned {
                     let result: T = serde_yaml::from_slice(&data).unwrap();
                     return Ok(result);
                 }
-                Err(_) => println!("Settings url is not set!"),
+                Err(_) => println!("Can't get settings by url!"),
             }
         }
         Err(_) => println!("Settings url is not set!"),

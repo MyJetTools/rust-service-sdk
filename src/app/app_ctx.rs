@@ -8,6 +8,13 @@ pub trait GetGlobalState {
     fn shutting_down(&self);
 }
 
+pub trait InitGrpc {
+    fn init_grpc(
+        &self,
+        server: Box<std::cell::RefCell<tonic::transport::Server>>,
+    ) -> tonic::transport::server::Router;
+}
+
 pub trait GetLogStashUrl {
     fn get_logstash_url(&self) -> String;
 }
