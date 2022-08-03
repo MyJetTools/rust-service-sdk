@@ -5,6 +5,7 @@ pub mod services;
 #[cfg(test)]
 pub mod test {
 
+    use log::logger;
     use rust_service_sdk::{
         app::{
             app_ctx::{GetGlobalState, GetLogStashUrl, InitGrpc},
@@ -17,6 +18,7 @@ pub mod test {
     use std::sync::Arc;
     use tokio::sync::Mutex;
     use tokio_util::sync::CancellationToken;
+    use tracing::{trace, warn};
 
     use crate::{
         domain::{Database, DatabaseImpl, RequestCounter},
@@ -122,6 +124,45 @@ pub mod test {
         }
     }
 
+    pub struct TestLogger;
+
+    impl rust_extensions::Logger for TestLogger {
+        fn write_info(
+            &self,
+            process: String,
+            message: String,
+            ctx: Option<std::collections::HashMap<String, String>>,
+        ) {
+            trace!("{}: {}", process, message);
+        }
+
+        fn write_warning(
+            &self,
+            process: String,
+            message: String,
+            ctx: Option<std::collections::HashMap<String, String>>,
+        ) {
+            warn!("{}: {}", process, message)
+        }
+
+        fn write_error(
+            &self,
+            process: String,
+            message: String,
+            ctx: Option<std::collections::HashMap<String, String>>,
+        ) {
+            tracing::error!("{}: {}", process, message);
+        }
+
+        fn write_fatal_error(
+            &self,
+            process: String,
+            message: String,
+            ctx: Option<std::collections::HashMap<String, String>>,
+        ) {
+            tracing::error!("{}: {}", process, message);
+        }
+    }
     //Uses env settings
     //Integration test
     #[tokio::test]
@@ -132,11 +173,7 @@ pub mod test {
         let func = move |server| clone.init_grpc(server);
 
         let data_writer = my_no_sql_data_writer::MyNoSqlDataWriter::<TestEntity>::new(
-            application
-                .settings
-                .inner
-                .my_no_sql_writer_url
-                .clone(),
+            application.settings.inner.my_no_sql_writer_url.clone(),
             "rust-test-entity".to_string(),
             true,
             true,
@@ -156,6 +193,32 @@ pub mod test {
             .await
             .unwrap();
         println!("{:?}", res.unwrap());
+        let no_sql_connection = my_no_sql_tcp_reader::MyNoSqlTcpConnection::new(
+            application
+                .settings
+                .inner
+                .my_mo_sql_reader_host_port
+                .clone(),
+            "sdk-test".to_string(),
+        );
+
+        let logger: Arc<dyn rust_extensions::Logger + Send + Sync> = Arc::new(TestLogger {});
+
+        no_sql_connection.start(logger).await;
+        let data_reader = no_sql_connection
+            .get_reader::<TestEntity>("rust-test-entity".to_string())
+            .await;
+
+        loop {
+            let entity = data_reader.get_entity("Test", "Row").await;
+
+            if let Some(x) = entity {
+                println!("{:?}", x);
+                break;
+            }
+
+            tokio::time::sleep(std::time::Duration::from_millis(1_000)).await;
+        }
 
         let sink = application.start_hosting(func).await;
 

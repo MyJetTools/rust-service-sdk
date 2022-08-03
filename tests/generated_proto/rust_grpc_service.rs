@@ -1,10 +1,10 @@
-///  The request with a id of the book
+/// The request with a id of the book
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetBookRequest {
     #[prost(string, tag="1")]
     pub id: ::prost::alloc::string::String,
 }
-///  The response details of a book
+/// The response details of a book
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetBookResponse {
     #[prost(string, tag="1")]
