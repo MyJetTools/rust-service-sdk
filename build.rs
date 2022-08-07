@@ -11,3 +11,8 @@ fn main() {
 
     println!("cargo:rerun-if-changed={}", example_proto_file);
 }
+
+#[cfg(not(test))]
+fn main() {
+
+}
