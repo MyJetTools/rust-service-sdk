@@ -1,3 +1,4 @@
+#[cfg(test)]
 fn main() {
     let example_proto_file = "./tests/proto/example.proto"; 
 
