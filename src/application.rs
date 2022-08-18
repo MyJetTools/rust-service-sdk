@@ -172,15 +172,16 @@ fn report_exit(
     }
 }
 
-#[cfg(target_os = "linux")]
-fn wait_for_sigterm() -> Result<(), Box<dyn std::error::Error>> {
-    use tokio_signal::unix::{Signal, SIGINT, SIGTERM};
-    let stream = Signal::new(SIGTERM).flatten_stream();
-    stream.recv().await;
+#[cfg(not(target_os = "windows"))]
+async fn wait_for_sigterm() -> Result<(), Box<dyn std::error::Error>> {
+    
+    let mut signal = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+    signal.recv().await;
+
     Ok(())
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "windows")]
 async fn wait_for_sigterm() -> Result<(), Box<dyn std::error::Error>> {
     tokio::signal::windows::ctrl_break()?.recv().await;
     Ok(())
