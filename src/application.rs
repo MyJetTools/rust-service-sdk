@@ -59,20 +59,18 @@ where
         sink
     }
 
-    pub async fn start_hosting<Func>(&mut self, func:Func) -> Arc<ElasticSink>
-    where Func: Fn(
-        Box<std::cell::RefCell<tonic::transport::Server>>,
-    ) -> tonic::transport::server::Router
-    + Send
-    + Sync
-    + 'static,
+    pub async fn start_hosting<Func>(&mut self, func: Func) -> Arc<ElasticSink>
+    where
+        Func: Fn(
+                Box<std::cell::RefCell<tonic::transport::Server>>,
+            ) -> tonic::transport::server::Router
+            + Send
+            + Sync
+            + 'static,
     {
         let sink = self.start_logger();
-        
-        let grpc_server = tokio::spawn(server::run_grpc_server(
-            self.env_config.clone(),
-            func,
-        ));
+
+        let grpc_server = tokio::spawn(server::run_grpc_server(self.env_config.clone(), func));
         let http_server = tokio::spawn(server::run_http_server(self.env_config.clone()));
 
         self.grpc_server = Box::new(grpc_server);
@@ -108,6 +106,10 @@ where
                 tracing::info!("Stop signal received!");
                 shut_func();
             },
+            _ = wait_for_sigterm() => {
+                tracing::info!("Termination signal received!");
+                shut_func();
+            },
             _ = cancellation_token.cancelled() => {
                 tracing::info!("Stop signal received via cancellation token!");
                 shut_func();
@@ -141,7 +143,6 @@ where
 
         sink.finalize_logs().await;
     }
-
 }
 
 fn report_exit(
@@ -169,4 +170,18 @@ fn report_exit(
             )
         }
     }
+}
+
+#[cfg(target_os = "linux")]
+fn wait_for_sigterm() -> Result<(), Box<dyn std::error::Error>> {
+    use tokio_signal::unix::{Signal, SIGINT, SIGTERM};
+    let stream = Signal::new(SIGTERM).flatten_stream();
+    stream.recv().await;
+    Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn wait_for_sigterm() -> Result<(), Box<dyn std::error::Error>> {
+    tokio::signal::windows::ctrl_break()?.recv().await;
+    Ok(())
 }
