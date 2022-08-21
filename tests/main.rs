@@ -167,7 +167,8 @@ pub mod test {
     //Integration test
     #[tokio::test]
     async fn check_that_sdk_works() {
-        let mut application = Application::<AppContext, SettingsModel>::init(AppContext::new).await;
+        let mut application = 
+        Application::<AppContext, SettingsModel>::init(AppContext::new).await;
 
         let clone = application.context.clone();
         let func = move |server| clone.init_grpc(server);
@@ -193,7 +194,7 @@ pub mod test {
             .await
             .unwrap();
         println!("{:?}", res.unwrap());
-        let no_sql_connection = my_no_sql_tcp_reader::MyNoSqlTcpConnection::new(
+/*         let no_sql_connection = my_no_sql_tcp_reader::MyNoSqlTcpConnection::new(
             application
                 .settings
                 .inner
@@ -218,7 +219,7 @@ pub mod test {
             }
 
             tokio::time::sleep(std::time::Duration::from_millis(1_000)).await;
-        }
+        } */
 
         let sink = application.start_hosting(func).await;
 

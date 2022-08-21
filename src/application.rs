@@ -7,7 +7,7 @@ use crate::{
     app::app_ctx::{GetGlobalState, GetLogStashUrl, InitGrpc},
     configuration::{EnvConfig, SettingsReader},
     server,
-    telemetry::{get_subscriber, init_subscriber, ElasticSink},
+    telemetry::{get_subscriber, init_subscriber, ElasticSink, FinalizeLogs, ConsoleSink, AllSinkTrait},
 };
 
 pub struct Application<TAppContext, TSettingsModel> {
@@ -43,11 +43,22 @@ where
         }
     }
 
-    fn start_logger(&self) -> Arc<ElasticSink> {
-        let sink = Arc::new(ElasticSink::new(
-            self.settings.get_logstash_url().parse().unwrap(),
-        ));
+    fn start_logger(&self) -> Arc<dyn AllSinkTrait + Send + Sync + 'static> {
+        let url = self.settings.get_logstash_url();
+        let sink: Arc<dyn AllSinkTrait + Send + Sync>;
+        if url.len() > 0 {
+            println!("Using ELASTIC SINK!");
+            sink = Arc::new(ElasticSink::new(
+                url.parse().unwrap(),
+            ));
+            
+        } else {
+            println!("Using CONSOLE SINK ONLY!");
+            sink = Arc::new(ConsoleSink::new());
+        }
+
         let clone = sink.clone();
+
         let subscriber = get_subscriber(
             "rust_service_template".into(),
             "info".into(),
@@ -59,7 +70,7 @@ where
         sink
     }
 
-    pub async fn start_hosting<Func>(&mut self, func: Func) -> Arc<ElasticSink>
+    pub async fn start_hosting<Func>(&mut self, func: Func) -> Arc<dyn AllSinkTrait + Send + Sync>
     where
         Func: Fn(
                 Box<std::cell::RefCell<tonic::transport::Server>>,
@@ -78,9 +89,9 @@ where
         sink
     }
 
-    pub async fn wait_for_termination<Func, Fut>(
+    pub async fn wait_for_termination<'a, Func, Fut>(
         &mut self,
-        sink: Arc<ElasticSink>,
+        sink: Arc<dyn AllSinkTrait + Send + Sync + 'a>,
         tasks_to_abort: &mut Vec<tokio::task::JoinHandle<Result<(), anyhow::Error>>>,
         cancellation: Option<Arc<CancellationToken>>,
         graceful_shutdown_task: Func,

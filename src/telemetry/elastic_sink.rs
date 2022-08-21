@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_trait::async_trait;
 use log::debug;
 use tokio::io::AsyncWriteExt;
 use tokio::{
@@ -14,6 +15,8 @@ use tokio::{
 };
 
 use tokio::net::TcpSocket;
+
+use super::{CreateWriter, AllSinkTrait};
 
 pub struct ElasticSink {
     buffer: Arc<RwLock<Vec<Vec<u8>>>>,
@@ -44,14 +47,11 @@ impl ElasticSink {
 
         res
     }
+}
 
-    pub fn create_writer(&self) -> ElasticWriter {
-        ElasticWriter {
-            sender: self.sender.clone(),
-        }
-    }
-
-    pub async fn finalize_logs(&self) {
+#[async_trait]
+impl super::sink_trait::FinalizeLogs for ElasticSink {
+    async fn finalize_logs(&self) {
         println!("Finalizing logs.");
         self.log_flusher.abort();
         let mut write_access = self.buffer.as_ref().write().await;
@@ -74,7 +74,7 @@ impl ElasticSink {
                 None => {
                     println!("Can't finalize logs!");
                     return;
-                },
+                }
             }
         }
 
@@ -90,6 +90,18 @@ impl ElasticSink {
 
         self.log_writer.abort();
         println!("Finalized logs.");
+    }
+}
+
+#[async_trait]
+impl AllSinkTrait for ElasticSink {
+}
+
+impl CreateWriter for ElasticSink {
+    fn create_writer(&self) -> Box<(dyn std::io::Write + 'static)> {
+        Box::new(ElasticWriter {
+            sender: self.sender.clone(),
+        })
     }
 }
 
