@@ -14,9 +14,10 @@ name = "rust-service-sdk-test"
 [dependencies]
 #MyNoSql
 my-no-sql-data-writer = { branch = "0.1.4", git = "https://github.com/MyJetTools/my-no-sql-data-writer.git" }
-#my-no-sql-tcp-reader = { branch = "0.1.5", git = "https://github.com/MyJetTools/my-no-sql-tcp-reader.git" }
+my-no-sql-tcp-reader = { branch = "0.1.5", git = "https://github.com/MyJetTools/my-no-sql-tcp-reader.git" }
 my-no-sql-server-abstractions = { branch = "main", git = "https://github.com/MyJetTools/my-no-sql-server-abstractions.git" }
 rust-extensions = { branch = "0.1.1", git = "https://github.com/MyJetTools/rust-extensions.git" }
+my-service-bus-tcp-client = { branch = "main", git = "https://github.com/MyJetTools/my-service-bus-tcp-client.git" }
 
 #Runtime
 tokio = { version = "*", features = ["full"] }

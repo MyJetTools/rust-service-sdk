@@ -147,7 +147,10 @@ async fn log_flusher_thread<'a>(log_stash_url: SocketAddr, data: Arc<RwLock<Vec<
                 Ok(size) => {
                     debug!("Send logs {:?}", size)
                 }
-                Err(err) => println!("Can't write logs to logstash server {:?}", err),
+                Err(err) => {
+                    println!("Can't write logs to logstash server {:?}", err);
+                    write_access.push(res);
+                }
             }
         }
 
