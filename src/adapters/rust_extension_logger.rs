@@ -1,6 +1,8 @@
-pub struct TestLogger;
+use tracing::{trace, warn};
 
-impl rust_extensions::Logger for TestLogger {
+pub struct LoggerAdapter;
+
+impl rust_extensions::Logger for LoggerAdapter {
     fn write_info(
         &self,
         process: String,
