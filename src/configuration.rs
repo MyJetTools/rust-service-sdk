@@ -11,7 +11,7 @@ pub struct EnvConfig {
 pub struct SettingsReader {}
 
 impl SettingsReader {
-    pub async fn read_settings<T>() -> Result<T, ()> where T: DeserializeOwned {
+    pub async fn read_settings<'a, T>() -> Result<T, ()> where T: DeserializeOwned {
         if let Ok(result) = read_from_url::<T>().await {
             return Ok(result);
         }

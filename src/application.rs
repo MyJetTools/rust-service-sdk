@@ -7,10 +7,11 @@ use crate::{
     app::app_ctx::{GetGlobalState, GetLogStashUrl, InitGrpc},
     configuration::{EnvConfig, SettingsReader},
     server,
-    telemetry::{get_subscriber, init_subscriber, ElasticSink, FinalizeLogs, ConsoleSink, AllSinkTrait},
+    telemetry::{get_subscriber, init_subscriber, ElasticSink, ConsoleSink, AllSinkTrait},
 };
 
 pub struct Application<TAppContext, TSettingsModel> {
+    //pub life: &'a PhantomData<()>,
     pub settings: Arc<TSettingsModel>,
     pub context: Arc<TAppContext>,
     pub env_config: Arc<EnvConfig>,
@@ -21,20 +22,25 @@ pub struct Application<TAppContext, TSettingsModel> {
 impl<TAppContext, TSettingsModel> Application<TAppContext, TSettingsModel>
 where
     TAppContext: GetGlobalState + InitGrpc + Send + Sync,
-    TSettingsModel: DeserializeOwned + GetLogStashUrl,
+    TSettingsModel: DeserializeOwned + GetLogStashUrl + Clone,
 {
-    pub async fn init<TGetConext>(create_context: TGetConext) -> Self
+    
+    pub async fn init<'a, TGetConext, Fut>(create_context: TGetConext) -> Self
     where
-        TGetConext: Fn(&TSettingsModel) -> TAppContext,
+        TGetConext: Send + Sync + 'static,
+        TGetConext: Fn(TSettingsModel) -> Fut,
+        Fut: Future<Output = TAppContext> + Send + Sync,
     {
         let settings = SettingsReader::read_settings::<TSettingsModel>()
             .await
             .expect("Can't get settings!");
 
         let env_config = Arc::new(SettingsReader::read_env_settings());
-        let context = Arc::new(create_context(&settings));
+        let ctx = create_context(settings.clone()).await;
+        let context = Arc::new(ctx);
 
         Application {
+            //life: & PhantomData,
             context,
             env_config,
             settings: Arc::new(settings),

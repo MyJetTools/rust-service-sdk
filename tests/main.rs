@@ -4,8 +4,6 @@ pub mod services;
 
 #[cfg(test)]
 pub mod test {
-
-    use log::logger;
     use rust_service_sdk::{
         app::{
             app_ctx::{GetGlobalState, GetLogStashUrl, InitGrpc},
@@ -18,20 +16,19 @@ pub mod test {
     use std::sync::Arc;
     use tokio::sync::Mutex;
     use tokio_util::sync::CancellationToken;
-    use tracing::{trace, warn};
 
     use crate::{
         domain::{Database, DatabaseImpl, RequestCounter},
         services::BookStoreImpl,
     };
 
-    #[derive(Serialize, Deserialize, Debug)]
+    #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct SettingsModel {
         #[serde(rename = "RustServiceTemplateTest")]
         pub inner: SettingsModelInner,
     }
 
-    #[derive(Serialize, Deserialize, Debug)]
+    #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct SettingsModelInner {
         #[serde(rename = "ZipkinUrl")]
         pub zipkin_url: String,
@@ -62,7 +59,7 @@ pub mod test {
     }
 
     impl AppContext {
-        pub fn new(settings: &SettingsModel) -> Self {
+        pub async fn new(_settings: SettingsModel) -> Self {
             Self {
                 states: GlobalStates::new(),
                 database: Arc::new(DatabaseImpl::new()),
@@ -142,7 +139,7 @@ pub mod test {
             my_no_sql_server_abstractions::DataSyncronizationPeriod::Sec15,
         );
 
-        let x = data_writer.create_table_if_not_exists().await.unwrap();
+        let _ = data_writer.create_table_if_not_exists().await.unwrap();
         let entity = TestEntity {
             data: 1,
             partition_key: "Test".into(),
