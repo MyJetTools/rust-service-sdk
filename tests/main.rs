@@ -30,11 +30,6 @@ pub mod test {
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct SettingsModelInner {
-        #[serde(rename = "ZipkinUrl")]
-        pub zipkin_url: String,
-
-        #[serde(rename = "SeqServiceUrl")]
-        pub seq_service_url: String,
 
         #[serde(rename = "LogStashUrl")]
         pub log_stash_url: String,
@@ -179,7 +174,8 @@ pub mod test {
             tokio::time::sleep(std::time::Duration::from_millis(1_000)).await;
         } */
 
-        let sink = application.start_hosting(func).await;
+        let sink = application.start_hosting(func,
+        "rust_service_template".into()).await;
 
         //JUST A GRPC EXAMPLE
         let token = Arc::new(CancellationToken::new());

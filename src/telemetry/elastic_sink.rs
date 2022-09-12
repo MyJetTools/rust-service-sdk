@@ -16,7 +16,7 @@ use tokio::{
 
 use tokio::net::TcpSocket;
 
-use super::{CreateWriter, AllSinkTrait};
+use super::{AllSinkTrait, CreateWriter};
 
 pub struct ElasticSink {
     buffer: Arc<RwLock<Vec<Vec<u8>>>>,
@@ -94,8 +94,7 @@ impl super::sink_trait::FinalizeLogs for ElasticSink {
 }
 
 #[async_trait]
-impl AllSinkTrait for ElasticSink {
-}
+impl AllSinkTrait for ElasticSink {}
 
 impl CreateWriter for ElasticSink {
     fn create_writer(&self) -> Box<(dyn std::io::Write + 'static)> {
@@ -108,8 +107,14 @@ impl CreateWriter for ElasticSink {
 impl std::io::Write for ElasticWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         std::io::stdout().write_all(&buf).unwrap();
-        self.sender.send(buf.to_vec()).unwrap();
-        Ok(buf.len())
+
+        match self.sender.send(buf.to_vec()) {
+            Ok(r) => Ok(buf.len()),
+            Err(err) => {
+                println!("Can't write to elastic channel!");
+                Err(std::io::Error::new(std::io::ErrorKind::Other, "Can't write to elastic channel!"))
+            },
+        }
     }
 
     fn flush(&mut self) -> std::io::Result<()> {

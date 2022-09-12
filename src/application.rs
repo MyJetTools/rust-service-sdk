@@ -49,7 +49,7 @@ where
         }
     }
 
-    fn start_logger(&self) -> Arc<dyn AllSinkTrait + Send + Sync + 'static> {
+    fn start_logger(&self, app_name: String) -> Arc<dyn AllSinkTrait + Send + Sync + 'static> {
         let url = self.settings.get_logstash_url();
         let sink: Arc<dyn AllSinkTrait + Send + Sync>;
         if url.len() > 0 {
@@ -66,7 +66,7 @@ where
         let clone = sink.clone();
 
         let subscriber = get_subscriber(
-            "rust_service_template".into(),
+            app_name,
             "info".into(),
             move || clone.create_writer(),
             self.env_config.index.clone(),
@@ -76,7 +76,7 @@ where
         sink
     }
 
-    pub async fn start_hosting<Func>(&mut self, func: Func) -> Arc<dyn AllSinkTrait + Send + Sync>
+    pub async fn start_hosting<Func>(&mut self, func: Func, app_name: String) -> Arc<dyn AllSinkTrait + Send + Sync>
     where
         Func: Fn(
                 Box<std::cell::RefCell<tonic::transport::Server>>,
@@ -85,7 +85,7 @@ where
             + Sync
             + 'static,
     {
-        let sink = self.start_logger();
+        let sink = self.start_logger(app_name);
 
         let grpc_server = tokio::spawn(server::run_grpc_server(self.env_config.clone(), func));
         let http_server = tokio::spawn(server::run_http_server(self.env_config.clone()));
