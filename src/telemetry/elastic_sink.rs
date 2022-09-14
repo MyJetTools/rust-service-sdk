@@ -131,18 +131,7 @@ async fn log_writer_thread(mut recv: UnboundedReceiver<Vec<u8>>, data: Arc<RwLoc
 
 //Executes each second
 async fn log_flusher_thread<'a>(log_stash_url: SocketAddr, data: Arc<RwLock<Vec<Vec<u8>>>>) {
-    let mut stream: TcpStream;
-    loop {
-        let opt = connect_to_socket(log_stash_url).await;
-
-        match opt {
-            Some(x) => {
-                stream = x;
-                break;
-            }
-            None => tokio::time::sleep(Duration::from_millis(1000)).await,
-        }
-    }
+    let mut stream = get_lostash_tcp_stream(log_stash_url).await;
 
     loop {
         let mut write_access = data.as_ref().write().await;
@@ -155,11 +144,28 @@ async fn log_flusher_thread<'a>(log_stash_url: SocketAddr, data: Arc<RwLock<Vec<
                 Err(err) => {
                     println!("Can't write logs to logstash server {:?}", err);
                     write_access.push(res);
+                    println!("Reconnect to logstash!");
+                    stream = get_lostash_tcp_stream(log_stash_url).await;
                 }
             }
         }
 
         tokio::time::sleep(Duration::from_millis(250)).await
+    }
+}
+
+async fn get_lostash_tcp_stream(log_stash_url: SocketAddr) -> TcpStream {
+    loop {
+        let opt = connect_to_socket(log_stash_url).await;
+
+        match opt {
+            Some(stream) => {
+                return stream;
+            }
+            None => {
+                println!("Can't connect to logstash! RETRY!");
+                tokio::time::sleep(Duration::from_millis(1000)).await},
+        }
     }
 }
 
