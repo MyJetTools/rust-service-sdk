@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -19,7 +20,7 @@ use tokio::net::TcpSocket;
 use super::{AllSinkTrait, CreateWriter};
 
 pub struct ElasticSink {
-    buffer: Arc<RwLock<Vec<Vec<u8>>>>,
+    buffer: Arc<RwLock<VecDeque<Vec<u8>>>>,
     sender: UnboundedSender<Vec<u8>>,
     log_writer: JoinHandle<()>,
     pub log_flusher: JoinHandle<()>,
@@ -34,7 +35,7 @@ impl ElasticSink {
     pub fn new(log_stash_url: SocketAddr) -> Self {
         let (sender, recv) = tokio::sync::mpsc::unbounded_channel();
 
-        let buffer = Arc::new(RwLock::new(vec![]));
+        let buffer = Arc::new(RwLock::new(VecDeque::with_capacity(1024)));
         let log_flusher = tokio::spawn(log_flusher_thread(log_stash_url, buffer.clone()));
         let log_writer = tokio::spawn(log_writer_thread(recv, buffer.clone()));
         let res = Self {
@@ -78,7 +79,7 @@ impl super::sink_trait::FinalizeLogs for ElasticSink {
             }
         }
 
-        while let Some(res) = write_access.pop() {
+        while let Some(res) = write_access.pop_back() {
             let send_res = stream.write(&res).await;
             match send_res {
                 Ok(size) => {
@@ -111,7 +112,7 @@ impl std::io::Write for ElasticWriter {
         match self.sender.send(buf.to_vec()) {
             Ok(r) => Ok(buf.len()),
             Err(err) => {
-                println!("Can't write to elastic channel!");
+                println!("Can't write to elastic channel! {:?}", err);
                 Err(std::io::Error::new(std::io::ErrorKind::Other, "Can't write to elastic channel!"))
             },
         }
@@ -122,20 +123,20 @@ impl std::io::Write for ElasticWriter {
     }
 }
 
-async fn log_writer_thread(mut recv: UnboundedReceiver<Vec<u8>>, data: Arc<RwLock<Vec<Vec<u8>>>>) {
+async fn log_writer_thread(mut recv: UnboundedReceiver<Vec<u8>>, data: Arc<RwLock<VecDeque<Vec<u8>>>>) {
     while let Some(next_item) = recv.recv().await {
         let mut write_access = data.as_ref().write().await;
-        write_access.push(next_item);
+        write_access.push_back(next_item);
     }
 }
 
 //Executes each second
-async fn log_flusher_thread<'a>(log_stash_url: SocketAddr, data: Arc<RwLock<Vec<Vec<u8>>>>) {
+async fn log_flusher_thread<'a>(log_stash_url: SocketAddr, data: Arc<RwLock<VecDeque<Vec<u8>>>>) {
     let mut stream = get_lostash_tcp_stream(log_stash_url).await;
 
     loop {
         let mut write_access = data.as_ref().write().await;
-        while let Some(res) = write_access.pop() {
+        while let Some(res) = write_access.pop_front() {
             let send_res = stream.write(&res).await;
             match send_res {
                 Ok(size) => {
@@ -143,7 +144,7 @@ async fn log_flusher_thread<'a>(log_stash_url: SocketAddr, data: Arc<RwLock<Vec<
                 }
                 Err(err) => {
                     println!("Can't write logs to logstash server {:?}", err);
-                    write_access.push(res);
+                    write_access.push_front(res);
                     println!("Reconnect to logstash!");
                     stream = get_lostash_tcp_stream(log_stash_url).await;
                 }
