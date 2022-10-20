@@ -30,7 +30,6 @@ pub mod test {
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct SettingsModelInner {
-
         #[serde(rename = "LogStashUrl")]
         pub log_stash_url: String,
 
@@ -115,13 +114,12 @@ pub mod test {
             0
         }
     }
-    
+
     //Uses env settings
     //Integration test
     #[tokio::test]
     async fn check_that_sdk_works() {
-        let mut application = 
-        Application::<AppContext, SettingsModel>::init(AppContext::new).await;
+        let mut application = Application::<AppContext, SettingsModel>::init(AppContext::new).await;
 
         let clone = application.context.clone();
         let func = move |server| clone.init_grpc(server);
@@ -147,7 +145,7 @@ pub mod test {
             .await
             .unwrap();
         println!("{:?}", res.unwrap());
-/*         let no_sql_connection = my_no_sql_tcp_reader::MyNoSqlTcpConnection::new(
+        /*         let no_sql_connection = my_no_sql_tcp_reader::MyNoSqlTcpConnection::new(
             application
                 .settings
                 .inner
@@ -174,8 +172,9 @@ pub mod test {
             tokio::time::sleep(std::time::Duration::from_millis(1_000)).await;
         } */
 
-        let sink = application.start_hosting(func,
-        "rust_service_template".into()).await;
+        let sink = application
+            .start_hosting(func, "rust_service_template".into())
+            .await;
 
         //JUST A GRPC EXAMPLE
         let token = Arc::new(CancellationToken::new());
@@ -213,21 +212,23 @@ pub mod test {
 
     async fn start_test(
         endpoint: Arc<EnvConfig>,
-        token: Arc<CancellationToken>,
+        _token: Arc<CancellationToken>,
     ) -> Result<(), anyhow::Error> {
-        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-        let mut client = crate::generated_proto::bookstore_client::BookstoreClient::connect(
-            format!("http://{}:{}", endpoint.base_url, endpoint.grpc_port),
-        )
-        .await?;
+        loop {
+            tokio::time::sleep(std::time::Duration::from_millis(12)).await;
+            let mut client = crate::generated_proto::bookstore_client::BookstoreClient::connect(
+                format!("http://{}:{}", endpoint.base_url, endpoint.grpc_port),
+            )
+            .await?;
 
-        let request =
-            tonic::Request::new(crate::generated_proto::GetBookRequest { id: "123".into() });
+            let request =
+                tonic::Request::new(crate::generated_proto::GetBookRequest { id: "123".into() });
 
-        let response = client.get_book(request).await.unwrap();
+            let response = client.get_book(request).await.unwrap();
 
-        println!("RESPONSE={:?}", response);
-        token.cancel();
-        Ok(())
+            println!("RESPONSE={:?}", response);
+        }
+        //_token.cancel();
+        //Ok(())
     }
 }

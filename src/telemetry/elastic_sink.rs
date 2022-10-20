@@ -85,7 +85,10 @@ impl super::sink_trait::FinalizeLogs for ElasticSink {
                 Ok(size) => {
                     debug!("Send logs {:?}", size)
                 }
-                Err(err) => println!("Can't write logs to logstash server {:?}", err),
+                Err(err) => println!(
+                    "Finalization: Can't write logs to logstash server {:?}",
+                    err
+                ),
             }
         }
 
@@ -113,8 +116,11 @@ impl std::io::Write for ElasticWriter {
             Ok(r) => Ok(buf.len()),
             Err(err) => {
                 println!("Can't write to elastic channel! {:?}", err);
-                Err(std::io::Error::new(std::io::ErrorKind::Other, "Can't write to elastic channel!"))
-            },
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "Can't write to elastic channel!",
+                ))
+            }
         }
     }
 
@@ -123,7 +129,10 @@ impl std::io::Write for ElasticWriter {
     }
 }
 
-async fn log_writer_thread(mut recv: UnboundedReceiver<Vec<u8>>, data: Arc<RwLock<VecDeque<Vec<u8>>>>) {
+async fn log_writer_thread(
+    mut recv: UnboundedReceiver<Vec<u8>>,
+    data: Arc<RwLock<VecDeque<Vec<u8>>>>,
+) {
     while let Some(next_item) = recv.recv().await {
         let mut write_access = data.as_ref().write().await;
         write_access.push_back(next_item);
@@ -132,6 +141,7 @@ async fn log_writer_thread(mut recv: UnboundedReceiver<Vec<u8>>, data: Arc<RwLoc
 
 //Executes each second
 async fn log_flusher_thread<'a>(log_stash_url: SocketAddr, data: Arc<RwLock<VecDeque<Vec<u8>>>>) {
+    println!("Connect to logstash!");
     let mut stream = get_lostash_tcp_stream(log_stash_url).await;
 
     loop {
@@ -143,7 +153,7 @@ async fn log_flusher_thread<'a>(log_stash_url: SocketAddr, data: Arc<RwLock<VecD
                     debug!("Send logs {:?}", size)
                 }
                 Err(err) => {
-                    println!("Can't write logs to logstash server {:?}", err);
+                    println!("Can't write logs to logstash server. Error: {:?}", err);
                     write_access.push_front(res);
                     println!("Reconnect to logstash!");
                     stream = get_lostash_tcp_stream(log_stash_url).await;
@@ -165,7 +175,8 @@ async fn get_lostash_tcp_stream(log_stash_url: SocketAddr) -> TcpStream {
             }
             None => {
                 println!("Can't connect to logstash! RETRY!");
-                tokio::time::sleep(Duration::from_millis(1000)).await},
+                tokio::time::sleep(Duration::from_millis(1000)).await
+            }
         }
     }
 }
@@ -193,4 +204,124 @@ async fn connect_to_socket(log_stash_url: SocketAddr) -> Option<TcpStream> {
     }
 
     Some(stream)
+}
+
+#[cfg(test)]
+mod tests {
+
+    use std::{time::Duration, sync::Arc};
+
+    use crate::telemetry::CreateWriter;
+
+    use super::get_lostash_tcp_stream;
+    use serde_json::to_vec;
+    use tokio;
+
+    #[tokio::test]
+    async fn check_socket_2() {
+        println!("start test");
+        let url = env!("LOGSTASH_URL"); //use logstash url here;
+        let sink = Arc::new(crate::telemetry::ElasticSink::new(url.parse().unwrap()));
+        let clone = sink.clone();
+        let subscriber = crate::telemetry::get_subscriber(
+            "check_socket_2".into(),
+            "info".into(),
+            move || clone.create_writer(),
+            "jet-logs-*uat*".into(),
+            "uat".into(),
+        );
+        crate::telemetry::init_subscriber(subscriber);
+
+        loop {
+            tokio::time::sleep(Duration::from_millis(30_000)).await;
+            tracing::info!("Test");
+        }
+    }
+
+    #[tokio::test]
+    async fn check_socket() {
+        println!("start test");
+        let url = env!("LOGSTASH_URL"); //use logstash url here;
+        let tcp_steam = get_lostash_tcp_stream(url.parse().unwrap()).await;
+        let json = r#"{"v":0,"name":"service_nft_blockchain","msg":"Stop signal received!","level":"Info","hostname":"DESKTOP-59Q3ECI","pid":23564,"index":"jet-logs-*uat*","env":"dev","time":"2022-10-19T21:54:56.885236Z","target":"rust_service_sdk::application","line":123,"file":"C:\\Users\\OttoVT\\.cargo\\git\\checkouts\\rust-service-sdk-0bb4f534504cabb6\\a7117f3\\src\\application.rs"}"#;
+        let bytes_js = json.as_bytes();
+        let (reader, writer) = tcp_steam.into_split();
+        let t1 = tokio::spawn(async move {
+            let mut buf = [0u8; 1024];
+            println!("start read");
+            'outer: loop {
+                tokio::time::sleep(Duration::from_millis(800)).await;
+                let is_readable = reader.readable().await;
+
+                match is_readable {
+                    Ok(_) => loop {
+                        println!("read");
+                        let size;
+                        match reader.try_read(&mut buf) {
+                            Ok(s) => size = s,
+                            Err(err) => {
+                                println!("err read {:?}", err);
+                                continue 'outer;
+                            }
+                        }
+
+                        if size > 0 {
+                            let s = match String::from_utf8(buf.to_vec()) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    println!("Invalid UTF-8 sequence: {}", e);
+                                    "".into()
+                                }
+                            };
+                            println!("Received bigger than 0! {}", s);
+                        } else {
+                            println!("Received 0!");
+                        }
+                        continue 'outer;
+                    },
+                    Err(err) => {
+                        println!("Error Read: {:?}", err);
+                        continue 'outer;
+                    }
+                }
+            }
+        });
+
+        /* let t2 = tokio::spawn(async move {
+            println!("start write");
+            'outer: loop {
+                tokio::time::sleep(Duration::from_millis(4000)).await;
+                let is_writable = writer.writable().await;
+
+                match is_writable {
+                    Ok(_) => 'inner: loop {
+                        println!("write");
+                        let size;
+
+                        match writer.try_write(&bytes_js) {
+                            Ok(s) => size = s,
+                            Err(err) => {
+                                println!("err write {:?}", err);
+                                continue 'outer;
+                            }
+                        }
+                        if size > 0 {
+                            println!("Sent bigger than 0! {}", size);
+                        } else {
+                            println!("Sent 0!");
+                        }
+                        continue 'outer;
+                    },
+                    Err(err) => {
+                        println!("Error Write: {:?}", err);
+                        continue 'outer;
+                        //panic!();
+                    }
+                }
+            }
+        }); */
+
+        t1.await.unwrap();
+        //t2.await.unwrap();
+    }
 }
