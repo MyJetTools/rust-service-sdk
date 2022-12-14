@@ -113,7 +113,7 @@ impl std::io::Write for ElasticWriter {
         std::io::stdout().write_all(&buf).unwrap();
 
         match self.sender.send(buf.to_vec()) {
-            Ok(r) => Ok(buf.len()),
+            Ok(_r) => Ok(buf.len()),
             Err(err) => {
                 println!("Can't write to elastic channel! {:?}", err);
                 Err(std::io::Error::new(
@@ -214,7 +214,7 @@ mod tests {
     use crate::telemetry::CreateWriter;
 
     use super::get_lostash_tcp_stream;
-    use serde_json::to_vec;
+    
     use tokio;
 
     #[tokio::test]
@@ -244,8 +244,8 @@ mod tests {
         let url = env!("LOGSTASH_URL"); //use logstash url here;
         let tcp_steam = get_lostash_tcp_stream(url.parse().unwrap()).await;
         let json = r#"{"v":0,"name":"service_nft_blockchain","msg":"Stop signal received!","level":"Info","hostname":"DESKTOP-59Q3ECI","pid":23564,"index":"jet-logs-*uat*","env":"dev","time":"2022-10-19T21:54:56.885236Z","target":"rust_service_sdk::application","line":123,"file":"C:\\Users\\OttoVT\\.cargo\\git\\checkouts\\rust-service-sdk-0bb4f534504cabb6\\a7117f3\\src\\application.rs"}"#;
-        let bytes_js = json.as_bytes();
-        let (reader, writer) = tcp_steam.into_split();
+        let _bytes_js = json.as_bytes();
+        let (reader, _writer) = tcp_steam.into_split();
         let t1 = tokio::spawn(async move {
             let mut buf = [0u8; 1024];
             println!("start read");

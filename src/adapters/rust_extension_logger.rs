@@ -7,7 +7,7 @@ impl rust_extensions::Logger for LoggerAdapter {
         &self,
         process: String,
         message: String,
-        ctx: Option<std::collections::HashMap<String, String>>,
+        _ctx: Option<std::collections::HashMap<String, String>>,
     ) {
         trace!("{}: {}", process, message);
     }
@@ -16,7 +16,7 @@ impl rust_extensions::Logger for LoggerAdapter {
         &self,
         process: String,
         message: String,
-        ctx: Option<std::collections::HashMap<String, String>>,
+        _ctx: Option<std::collections::HashMap<String, String>>,
     ) {
         warn!("{}: {}", process, message)
     }
@@ -25,7 +25,7 @@ impl rust_extensions::Logger for LoggerAdapter {
         &self,
         process: String,
         message: String,
-        ctx: Option<std::collections::HashMap<String, String>>,
+        _ctx: Option<std::collections::HashMap<String, String>>,
     ) {
         tracing::error!("{}: {}", process, message);
     }
@@ -34,7 +34,7 @@ impl rust_extensions::Logger for LoggerAdapter {
         &self,
         process: String,
         message: String,
-        ctx: Option<std::collections::HashMap<String, String>>,
+        _ctx: Option<std::collections::HashMap<String, String>>,
     ) {
         tracing::error!("{}: {}", process, message);
     }
