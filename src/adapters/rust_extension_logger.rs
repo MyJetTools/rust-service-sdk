@@ -1,5 +1,3 @@
-use tracing::{trace, warn};
-
 pub struct LoggerAdapter;
 
 impl rust_extensions::Logger for LoggerAdapter {
@@ -9,7 +7,7 @@ impl rust_extensions::Logger for LoggerAdapter {
         message: String,
         _ctx: Option<std::collections::HashMap<String, String>>,
     ) {
-        trace!("{}: {}", process, message);
+        tracing::trace!("{}: {}", process, message);
     }
 
     fn write_warning(
@@ -18,7 +16,7 @@ impl rust_extensions::Logger for LoggerAdapter {
         message: String,
         _ctx: Option<std::collections::HashMap<String, String>>,
     ) {
-        warn!("{}: {}", process, message)
+        tracing::warn!("{}: {}", process, message)
     }
 
     fn write_error(
@@ -37,5 +35,14 @@ impl rust_extensions::Logger for LoggerAdapter {
         _ctx: Option<std::collections::HashMap<String, String>>,
     ) {
         tracing::error!("{}: {}", process, message);
+    }
+
+    fn write_debug_info(
+        &self,
+        process: String,
+        message: String,
+        _ctx: Option<std::collections::HashMap<String, String>>,
+    ) {
+        tracing::debug!("{}: {}", process, message)
     }
 }

@@ -113,6 +113,8 @@ pub mod test {
         fn get_time_stamp(&self) -> i64 {
             0
         }
+
+        const TABLE_NAME: &'static str = "rust-test-entity";
     }
 
     //Uses env settings
@@ -126,7 +128,6 @@ pub mod test {
 
         let data_writer = my_no_sql_data_writer::MyNoSqlDataWriter::<TestEntity>::new(
             application.settings.inner.my_no_sql_writer_url.clone(),
-            "rust-test-entity".to_string(),
             true,
             true,
             my_no_sql_server_abstractions::DataSyncronizationPeriod::Sec15,

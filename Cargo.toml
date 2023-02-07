@@ -13,11 +13,11 @@ name = "rust-service-sdk-test"
 
 [dependencies]
 #MyNoSql
-my-no-sql-data-writer = { tag = "0.1.5", git = "https://github.com/MyJetTools/my-no-sql-data-writer.git" }
-my-no-sql-tcp-reader = { tag = "0.1.6", git = "https://github.com/MyJetTools/my-no-sql-tcp-reader.git" }
-my-no-sql-server-abstractions = { tag = "0.1.0", git = "https://github.com/MyJetTools/my-no-sql-server-abstractions.git" }
-rust-extensions = { tag = "0.1.2", git = "https://github.com/MyJetTools/rust-extensions.git" }
-my-service-bus-tcp-client = { tag = "0.1.6", git = "https://github.com/MyJetTools/my-service-bus-tcp-client.git" }
+my-no-sql-data-writer = { tag = "0.1.6", git = "https://github.com/MyJetTools/my-no-sql-data-writer.git" }
+my-no-sql-tcp-reader = { tag = "0.1.8", git = "https://github.com/MyJetTools/my-no-sql-tcp-reader.git" }
+my-no-sql-server-abstractions = { tag = "0.1.1", git = "https://github.com/MyJetTools/my-no-sql-server-abstractions.git" }
+rust-extensions = { tag = "0.1.3", git = "https://github.com/MyJetTools/rust-extensions.git" }
+my-service-bus-tcp-client = { tag = "0.2.1", git = "https://github.com/MyJetTools/my-service-bus-tcp-client.git" }
 my-logger = { tag = "0.2.0", git = "https://github.com/MyJetTools/my-logger.git" }
 
 #Runtime
@@ -29,7 +29,7 @@ rand = "*"
 anyhow = "*"
 lazy_static = "1.4.0"
 time = { version = "0.3", default-features = false, features = ["formatting"] }
-gethostname = "0.2.1"
+gethostname = "0.4.1"
 tonic = "0.8.0"
 prost = "0.11.0"
 uuid = {version = "*", features = [
