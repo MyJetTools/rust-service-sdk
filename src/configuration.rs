@@ -32,9 +32,9 @@ impl SettingsReader {
             _ => {"127.0.0.1"},
         }).to_string();
         let index = (match environment.as_str() {
-            "uat" => "jet-logs-*uat*",
-            "test" => "jet-logs-test*",
-            "prod" => "jet-logs-prod*",
+            "uat" => "jet-logs-2uat",
+            "test" => "jet-logs-test",
+            "prod" => "jet-logs-prod",
             _ => "jet-logs-*uat*",
         }).to_string();
 

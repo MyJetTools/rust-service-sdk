@@ -110,13 +110,14 @@ impl<W: for<'a> MakeWriter<'a> + 'static> CustomFormattingLayer<W> {
         message: &str,
         level: &Level,
     ) -> Result<(), std::io::Error> {
+        let cur_date = chrono::Utc::now().format("%Y-%m-%d").to_string();
         map_serializer.serialize_entry(BUNYAN_VERSION, &self.bunyan_version)?;
         map_serializer.serialize_entry(NAME, &self.name)?;
         map_serializer.serialize_entry(MESSAGE, &message)?;
         map_serializer.serialize_entry(LEVEL, &to_bunyan_level(level))?;
         map_serializer.serialize_entry(HOSTNAME, &self.hostname)?;
         map_serializer.serialize_entry(PID, &self.pid)?;
-        map_serializer.serialize_entry(INDEX, &self.index)?;
+        map_serializer.serialize_entry(INDEX, &format!("{}-{}",self.index, cur_date))?;
         map_serializer.serialize_entry(ENV, &self.env)?;
         if let Ok(time) = &time::OffsetDateTime::now_utc().format(&Rfc3339) {
             map_serializer.serialize_entry(TIME, time)?;
